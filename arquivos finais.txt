@@ -1,0 +1,9 @@
+arquivos que iram para a versao final do projeto 
+gera visualizacao para analise de comportamento.py
+gera visualizações.py
+modelo final usando comportamento.py
+num exames.py
+prever nodulos IA.py
+extrai.py - gera dados do padrao ouro
+segmentação otimizada texturas unico.py
+erro em porcentagem

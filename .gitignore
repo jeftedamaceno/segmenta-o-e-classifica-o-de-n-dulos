@@ -1,0 +1,21 @@
+# Ignorar pastas com exames pesados de Tomografia e DICOM
+/lidc_idri/
+/LIDC-XML-only
+/modelo antigo
+**/C:/dataset nodulos/
+*.dcm
+*.DCM
+
+# Ignorar pastas locais de visualizações ou caches locais
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# Permitir salvar seus códigos, o modelo de IA e tabelas CSV tratadas
+!*.py
+!*.csv
+!*.joblib
+!*.md
+!*.txt
