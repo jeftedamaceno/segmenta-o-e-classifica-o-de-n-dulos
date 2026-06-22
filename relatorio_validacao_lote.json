@@ -1,0 +1,13 @@
+{
+    "estatisticas": {
+        "Total_Nodulos_Avaliados": 0,
+        "Verdadeiros_Malignos_Acertos": 0,
+        "Verdadeiros_Benignos_Acertos": 0,
+        "Falsos_Malignos_Erros": 0,
+        "Falsos_Benignos_Erros": 0,
+        "Casos_Moderados_Ignorados": 0,
+        "Falhas_Segmentacao_Indeterminados": 0,
+        "Erros_Leitura_DICOM": 35795
+    },
+    "predicoes": []
+}

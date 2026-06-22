@@ -17,7 +17,7 @@ from sklearn.linear_model import LogisticRegression
 # =====================================================
 # 1. CONFIGURAÇÕES DE PASTAS E CARREGAMENTO
 # =====================================================
-ARQUIVO_CSV = "dataset_radiomica_segmentado_ia.csv"
+ARQUIVO_CSV = "dataset_final.csv"
 PASTA_OUTPUT = "visualizacoes_diagnosticas"
 
 # Cria a pasta de saída se ela não existir
@@ -26,10 +26,25 @@ os.makedirs(PASTA_OUTPUT, exist_ok=True)
 print("🔄 Carregando e tratando o dataset...")
 df = pd.read_csv(ARQUIVO_CSV)
 
-# Identifica as colunas de validação e IDs para remoção do treino
+# Mapeia dinamicamente o volume estimado da IA caso não exista uma coluna crua dedicada
+if 'Volume_IA_mm3' not in df.columns and 'Volume_Ideal_GT_Consolidado_mm3' in df.columns:
+    # Reconstrói matematicamente o volume gerado pela IA com base no desvio absoluto catalogado
+    df['Volume_IA_mm3'] = df['Volume_Ideal_GT_Consolidado_mm3'] + df['Diferenca_Absoluta_Volume_mm3']
+
+# Ajusta nomes de colunas do Ground Truth para sincronizar com as chamadas de gráficos
+if 'Volume_Ideal_GT_mm3' not in df.columns and 'Volume_Ideal_GT_Consolidado_mm3' in df.columns:
+    df['Volume_Ideal_GT_mm3'] = df['Volume_Ideal_GT_Consolidado_mm3']
+
+# Garante que as colunas necessárias de validação existam no arquivo
+colunas_validacao = ['Volume_Ideal_GT_mm3', 'Volume_IA_mm3', 'Dice_Score', 'IoU_Score', 'Diferenca_Absoluta_Volume_mm3']
+for col in colunas_validacao:
+    if col not in df.columns:
+        raise ValueError(f"A coluna essencial '{col}' não foi encontrada ou não pôde ser calculada no seu CSV.")
+
+# Identifica as colunas de validação e IDs para remoção do treino (Evitar Data Leakage)
 colunas_vazamento = [
-    'ID_Nodulo', 'Volume_Ideal_GT_mm3', 'Diferenca_Absoluta_Volume_mm3', 
-    'Dice_Score', 'IoU_Score'
+    'ID_Nodulo', 'ID_Nodulo_Unico', 'Volume_Ideal_GT_mm3', 'Volume_Ideal_GT_Consolidado_mm3',
+    'Volume_IA_mm3', 'Diferenca_Absoluta_Volume_mm3', 'Dice_Score', 'IoU_Score'
 ]
 colunas_remover = [col for col in colunas_vazamento if col in df.columns]
 
@@ -47,7 +62,7 @@ X_scaled = scaler.fit_transform(X)
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
-# Configuração global de estilo para os gráficos ficarem elegantes
+# Configuração global de estilo para os gráficos
 sns.set_theme(style="whitegrid")
 plt.rcParams.update({'font.size': 11, 'axes.labelsize': 12, 'axes.titlesize': 13})
 
@@ -57,9 +72,8 @@ plt.rcParams.update({'font.size': 11, 'axes.labelsize': 12, 'axes.titlesize': 13
 print(f"📁 Salvando gráficos na pasta: '{PASTA_OUTPUT}'...")
 
 # --- GRAFICO 1: Matriz de Correlação (Spearman) ---
-plt.figure(figsize=(11, 9))
-# Spearman captura melhor relações não-lineares comuns em radiômica
-corr_matrix = df.drop(columns=['ID_Nodulo'], errors='ignore').corr(method='spearman')
+plt.figure(figsize=(12, 10))
+corr_matrix = df.drop(columns=['ID_Nodulo', 'ID_Nodulo_Unico'], errors='ignore').corr(method='spearman')
 mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
 sns.heatmap(corr_matrix, mask=mask, annot=True, fmt=".2f", cmap="Spectral", 
             vmin=-1, vmax=1, cbar_kws={"shrink": .8}, annot_kws={"size": 8})
@@ -87,12 +101,9 @@ plt.close()
 print(" -> [OK] 2_pca_2d.png")
 
 # --- GRAFICO 3: Comportamento da Calcificação vs Variável Alvo ---
-# --- GRAFICO 3: Comportamento da Calcificação vs Variável Alvo (CORRIGIDO) ---
 plt.figure(figsize=(8, 5))
 df_plot_calc = df.copy()
 df_plot_calc['IC_Porcentagem'] = df_plot_calc['Proporcao_Calcificacao_IA'] * 100
-
-# Convertemos para string explicitamente para bater com as chaves da paleta
 df_plot_calc['Malignidade_Real_Target'] = df_plot_calc['Malignidade_Real_Target'].astype(str)
 
 paleta_corrigida = {'0': '#3498db', '1': '#e67e22'}
@@ -101,10 +112,10 @@ sns.violinplot(
     x='Malignidade_Real_Target', 
     y='IC_Porcentagem', 
     data=df_plot_calc, 
-    hue='Malignidade_Real_Target', # Define o hue explicitamente
+    hue='Malignidade_Real_Target', 
     palette=paleta_corrigida, 
     inner="quartile",
-    legend=False # Remove legenda redundante
+    legend=False 
 )
 sns.stripplot(
     x='Malignidade_Real_Target', 
@@ -123,6 +134,7 @@ plt.tight_layout()
 plt.savefig(os.path.join(PASTA_OUTPUT, "3_calcificacao_vs_target.png"), dpi=300)
 plt.close()
 print(" -> [OK] 3_calcificacao_vs_target.png")
+
 # --- GRAFICO 4: Dispersão de Variáveis Principais (Volume vs Média HU) ---
 plt.figure(figsize=(9, 6))
 sns.scatterplot(data=df, x='Volume_IA_mm3', y='HU_Mean_IA', hue='Malignidade_Real_Target',
@@ -130,7 +142,7 @@ sns.scatterplot(data=df, x='Volume_IA_mm3', y='HU_Mean_IA', hue='Malignidade_Rea
 plt.xlabel("Volume Segmentado pela IA (mm³)")
 plt.ylabel("Densidade Média Interna (Unidades Hounsfield - HU)")
 plt.title("Dispersão Clínica: Volume vs Atenuação Média", weight='bold', pad=15)
-plt.legend(title="Malignidade")
+plt.legend(title="Malignidade", labels=["Benigno (0)", "Maligno (1)"])
 plt.grid(True, linestyle=':', alpha=0.6)
 plt.tight_layout()
 plt.savefig(os.path.join(PASTA_OUTPUT, "4_dispersao_volume_vs_hu.png"), dpi=300)
@@ -171,7 +183,7 @@ plt.savefig(os.path.join(PASTA_OUTPUT, "5_curvas_roc_modelos.png"), dpi=300)
 plt.close()
 print(" -> [OK] 5_curvas_roc_modelos.png")
 
-# --- GRAFICO 6: Importância de Recursos (Random Forest - CORRIGIDO) ---
+# --- GRAFICO 6: Importância de Recursos (Random Forest) ---
 importancias = modelos["Random Forest"].feature_importances_
 df_importancia = pd.DataFrame({
     'Atributo': X.columns,
@@ -179,7 +191,6 @@ df_importancia = pd.DataFrame({
 }).sort_values(by='Importancia', ascending=False)
 
 plt.figure(figsize=(10, 6))
-# Definindo hue='Atributo' e legend=False para silenciar o FutureWarning do Seaborn
 sns.barplot(x='Importancia', y='Atributo', data=df_importancia, hue='Atributo', palette='plasma', legend=False)
 plt.xlabel('Grau de Importância Relativa')
 plt.ylabel('Atributo Radiômico')
@@ -190,35 +201,17 @@ plt.close()
 print(" -> [OK] 6_importancia_atributos.png")
 
 # =====================================================
-# CONFIGURAÇÕES DE PASTAS E CARREGAMENTO
-# =====================================================
-ARQUIVO_CSV = "dataset_radiomica_segmentado_ia.csv"
-PASTA_OUTPUT = "visualizacoes_diagnosticas"
-
-
-# Garante que as colunas necessárias de validação existam no arquivo
-colunas_validacao = ['Volume_Ideal_GT_mm3', 'Volume_IA_mm3', 'Dice_Score', 'IoU_Score', 'Diferenca_Absoluta_Volume_mm3']
-for col in colunas_validacao:
-    if col not in df.columns:
-        raise ValueError(f"A coluna essencial '{col}' não foi encontrada no seu CSV.")
-
-sns.set_theme(style="whitegrid")
-plt.rcParams.update({'font.size': 11, 'axes.labelsize': 12, 'axes.titlesize': 13})
-
-# =====================================================
-# 7. GRÁFICO DE BLAND-ALTMAN (CONCORDÂNCIA DE VOLUME)
+# 4. GRÁFICO DE BLAND-ALTMAN (CONCORDÂNCIA DE VOLUME)
 # =====================================================
 plt.figure(figsize=(9, 6))
 vol_gt = df['Volume_Ideal_GT_mm3'].values
 vol_ia = df['Volume_IA_mm3'].values
 
-# Cálculo das variáveis do Bland-Altman
 medias = (vol_gt + vol_ia) / 2
-diferencas = vol_ia - vol_gt  # IA - Ouro
+diferencas = vol_ia - vol_gt 
 media_diff = np.mean(diferencas)
 std_diff = np.std(diferencas)
 
-# Limites de concordância de 95% (± 1.96 Desvios Padrão)
 limite_superior = media_diff + (1.96 * std_diff)
 limite_inferior = media_diff - (1.96 * std_diff)
 
@@ -237,16 +230,14 @@ plt.close()
 print(" -> [OK] 7_bland_altman_volume.png")
 
 # =====================================================
-# 2. DISTRIBUIÇÃO DOS SCORES DE SOBREPOSIÇÃO (DICE E IOU - CORRIGIDO)
+# 5. DISTRIBUIÇÃO DOS SCORES DE SOBREPOSIÇÃO (DICE E IOU)
 # =====================================================
 plt.figure(figsize=(8, 6))
-
 df_scores = df[['Dice_Score', 'IoU_Score']].melt(var_name='Métrica', value_name='Score')
 df_scores['Métrica'] = df_scores['Métrica'].map({'Dice_Score': 'Dice Coefficient', 'IoU_Score': 'Jaccard Index (IoU)'})
 
 paleta_scores = {'Dice Coefficient': '#9b59b6', 'Jaccard Index (IoU)': '#1abc9c'}
 
-# Corrigido passando hue e desativando a legenda redundante
 sns.violinplot(
     x='Métrica', 
     y='Score', 
@@ -257,8 +248,6 @@ sns.violinplot(
     linewidth=1.5,
     legend=False
 )
-
-# Corrigido o argumento de 'whiskproproprops' para 'whiskerprops' (palavra correta do matplotlib)
 sns.boxplot(
     x='Métrica', 
     y='Score', 
@@ -280,7 +269,7 @@ plt.close()
 print(" -> [OK] 8_distribuicao_dice_iou.png")
 
 # =====================================================
-# 3. HISTOGRAMA DO ERRO ABSOLUTO DE VOLUME
+# 6. HISTOGRAMA DO ERRO ABSOLUTO DE VOLUME
 # =====================================================
 plt.figure(figsize=(9, 5))
 sns.histplot(df['Diferenca_Absoluta_Volume_mm3'], bins=25, kde=True, color='#e74c3c', alpha=0.6, edgecolor='black')

@@ -7,7 +7,7 @@ import seaborn as sns
 # =====================================================
 # 1. PREPARAÇÃO DO AMBIENTE E DADOS
 # =====================================================
-ARQUIVO_CSV = "dataset_radiomica_segmentado_ia_unico.csv"
+ARQUIVO_CSV = "dataset_final.csv"
 PASTA_SAIDA = "visualizacoes_diagnosticas"
 
 # Cria a pasta requisitada se ela não existir
