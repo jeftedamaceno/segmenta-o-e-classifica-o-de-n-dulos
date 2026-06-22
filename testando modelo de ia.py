@@ -11,7 +11,7 @@ from prever_nodulos_IA import classificar_nodulos  # Importando o arquivo de inf
 # ==============================================================================
 ARQUIVO_METADADOS = "dados_segmentacao_nodulos_completo.csv"
 RAIZ_EXAMES = r"C:\dataset nodulos\lidc_idri\lidc_idri"
-LIMITE_AMOSTRAS = 100  # 🎯 Restrição de amostragem de nódulos
+LIMITE_AMOSTRAS = 150  # 🎯 Restrição de amostragem de nódulos
 
 def executar_validacao_em_lote():
     print("=" * 85)
